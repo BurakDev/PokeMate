@@ -3,6 +3,7 @@ package dekk.pw.pokemate.tasks;
 import com.pokegoapi.api.player.PlayerLevelUpRewards;
 import com.pokegoapi.exceptions.LoginFailedException;
 import com.pokegoapi.exceptions.RemoteServerException;
+import dekk.pw.pokemate.Config;
 import dekk.pw.pokemate.Context;
 import dekk.pw.pokemate.PokeMate;
 import dekk.pw.pokemate.PokeMateUI;
@@ -63,15 +64,14 @@ public class ConsoleGUIUpdate extends Task implements Runnable {
 
             if (curLevel > lastLevel) {
                 PlayerLevelUpRewards rewards = context.getProfile().acceptLevelUpRewards(curLevel - 1);
-                if (rewards.getStatus() == PlayerLevelUpRewards.Status.NEW) {
-                    String levelUp = "New level: " + curLevel;
-                    levelUp += convertItemAwards(rewards.getRewards());
+                if (rewards.getStatus() == PlayerLevelUpRewards.Status.NEW && Config.isShowUI()) {
+                    final String levelUp = "New level: " + curLevel + convertItemAwards(rewards.getRewards());
                     PokeMateUI.toast(levelUp, "Level Up", "icons/items/backpack.png");
                 }
                 lastLevel = curLevel;
             }
 
-            return String.format("Name: %-15s [%s] Level %d - %,.2fXP/H - Next Level in %,fXP - Runtime: %s",
+            return String.format("Name: %-15s [%s] Level %d - %,.2fXP/H - Next Level in %,.0fXP - Runtime: %s",
                                     context.getProfile().getPlayerData().getUsername(),
                                     new SimpleDateFormat("HH:mm:ss").format(new Date()),
                                     curLevel,

@@ -19,6 +19,7 @@ import com.pokegoapi.api.pokemon.Pokemon;
 import com.pokegoapi.exceptions.LoginFailedException;
 import com.pokegoapi.exceptions.RemoteServerException;
 import dekk.pw.pokemate.tasks.Navigate;
+import dekk.pw.pokemate.util.Time;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.scene.Scene;
@@ -161,15 +162,17 @@ public class PokeMateUI extends Application implements MapComponentInitializedLi
 
         Polygon pg = new Polygon(polygOpts);
         map.addMapShape(pg);
-
+        Time.sleep(5000);
         try {
             for(FortData gym : context.getMap().getMapObjects().getGyms()) {
+
                 LatLong position = new LatLong(gym.getLatitude(), gym.getLongitude());
                 Marker gymMap = new Marker(new MarkerOptions().position(position).title(gym.getId()).icon("icons/gym.png"));
                 map.addMarker(gymMap);
             }
 
             for(Pokestop pokestop : context.getMap().getMapObjects().getPokestops()) {
+
                 LatLong position = new LatLong(pokestop.getLatitude(), pokestop.getLongitude());
                 Marker pokestopMap = new Marker(new MarkerOptions().position(position).title(pokestop.getId()).icon("icons/pokestop_small.png"));
                 map.addMarker(pokestopMap);
@@ -306,7 +309,7 @@ public class PokeMateUI extends Application implements MapComponentInitializedLi
     }
 
     private void updatePlayer(Context context, InfoWindow window) {
-        PlayerProfile player = context.getPlayerProfile();
+        PlayerProfile player = context.getProfile();
         long runTime = System.currentTimeMillis() - PokeMate.startTime;
         try {
             double nextXP = requiredXp[player.getStats().getLevel()] - requiredXp[player.getStats().getLevel() - 1];
@@ -330,7 +333,7 @@ public class PokeMateUI extends Application implements MapComponentInitializedLi
 
     private void updateItems(Context context) {
         String itemsList = "\"";
-        try {
+
             for (Item item : context.getInventories().getItemBag().getItems()) {
                 if (item.getCount() > 0) {
                     String imgSrc = "icons/items/" + item.getItemId().getNumber() + ".png";
@@ -338,9 +341,7 @@ public class PokeMateUI extends Application implements MapComponentInitializedLi
                             "src=\'" + imgSrc + "\'" + "></td><td>" + item.getCount() + "</td></tr>";
                 }
             }
-        } catch (LoginFailedException | RemoteServerException e) {
-            e.printStackTrace();
-        }
+
         itemsList += "\"";
         mapComponent.getWebview().getEngine().executeScript("document.getElementById('info-items').innerHTML = " + itemsList);
     }
