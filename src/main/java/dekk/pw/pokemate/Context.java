@@ -2,25 +2,30 @@ package dekk.pw.pokemate;
 
 import com.google.common.util.concurrent.AtomicDouble;
 import com.pokegoapi.api.PokemonGo;
+import com.pokegoapi.api.inventory.Inventories;
+import com.pokegoapi.api.map.Map;
 import com.pokegoapi.api.player.PlayerProfile;
 import com.pokegoapi.api.pokemon.Pokemon;
-import com.pokegoapi.auth.*;
-
+import com.pokegoapi.auth.CredentialProvider;
+import com.pokegoapi.auth.GoogleUserCredentialProvider;
+import com.pokegoapi.auth.PtcCredentialProvider;
+import com.pokegoapi.exceptions.LoginFailedException;
+import com.pokegoapi.exceptions.RemoteServerException;
 import com.pokegoapi.util.SystemTimeImpl;
 import dekk.pw.pokemate.tasks.Task;
 import okhttp3.OkHttpClient;
 
 import javax.swing.*;
-import java.awt.Desktop;
+import java.awt.*;
 import java.io.File;
 import java.io.PrintWriter;
 import java.net.URI;
+import java.security.MessageDigest;
 import java.util.LinkedHashMap;
 import java.util.Scanner;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.security.MessageDigest;
 
 /**
  * Created by TimD on 7/21/2016.
@@ -31,28 +36,28 @@ public class Context {
     private AtomicDouble lat = new AtomicDouble();
     private AtomicDouble lng = new AtomicDouble();
     private PlayerProfile profile;
-    private AtomicBoolean walking = new AtomicBoolean(false);
+    private final AtomicBoolean walking = new AtomicBoolean(false);
     private CredentialProvider credentialProvider;
-    private static SystemTimeImpl time = new SystemTimeImpl();
-    private int MinimumAPIWaitTime = 300;
-    private boolean runStatus;
-    private ExecutorService executor = Executors.newSingleThreadExecutor();
+    private static final SystemTimeImpl time = new SystemTimeImpl();
+    private final ExecutorService executor = Executors.newFixedThreadPool(1);
     private int routesIndex;
-    private LinkedHashMap<String,String> consoleStrings = new LinkedHashMap<>();
+    private final LinkedHashMap<String,String> consoleStrings = new LinkedHashMap<>();
+    private Map pokeMap;
+    private Inventories pokeInventories;
 
 
     public Context(PokemonGo go, PlayerProfile profile, boolean walking, CredentialProvider credentialProvider, OkHttpClient http) {
+
         this.api = go;
         this.profile = profile;
         this.walking.set(walking);
         this.credentialProvider = credentialProvider;
         this.http = http;
-        this.runStatus = true;
         this.routesIndex = 0;
 
-        //This just sets up a standardized order of outputs for the HashMap
+        //This just sets up a standardized order of outputs for the GUI HashMap
         this.consoleStrings.put("Bot Actions", "");
-        this.consoleStrings.put("Update", "");
+        this.consoleStrings.put("Update", "0XP/H");
         this.consoleStrings.put("TagPokestop", "No PokeStops Tagged");
         this.consoleStrings.put("CatchPokemon", "No Pokemon Caught");
         this.consoleStrings.put("Navigate", "");
@@ -70,12 +75,12 @@ public class Context {
         return Login(null, httpClient);
     }
 
-    public static String getUsernameHash() {
+    private static String getUsernameHash() {
         try {
             MessageDigest md = MessageDigest.getInstance("MD5");
             md.update(Config.getUsername().getBytes());
             byte[] digest = md.digest();
-            StringBuffer sb = new StringBuffer();
+            StringBuilder sb = new StringBuilder();
             for (byte b : digest) {
                 sb.append(String.format("%02x", b & 0xff));
             }
@@ -88,8 +93,8 @@ public class Context {
         return Config.getUsername();
     }
 
-    public static CredentialProvider Login(Context context, OkHttpClient httpClient) {
-        String token = null;
+    private static CredentialProvider Login(Context context, OkHttpClient httpClient) {
+        String token;
         try {
             new File("tokens/").mkdir();
             if (Config.getUsername().contains("@")) {
@@ -102,18 +107,26 @@ public class Context {
                         return new GoogleUserCredentialProvider(httpClient, token, time);
                     }
                 } else {
+                    String access;
                     GoogleUserCredentialProvider provider = new GoogleUserCredentialProvider(httpClient, time);
                     System.out.println("-----------------------------------------");
                     System.out.println("  Please go to the following URL");
                     System.out.println(GoogleUserCredentialProvider.LOGIN_URL);
-                    Desktop.getDesktop().browse(URI.create(GoogleUserCredentialProvider.LOGIN_URL));
-
-                    String access = JOptionPane.showInputDialog("Enter authorization code: ");
+                    if (Config.isShowUI()) {
+                        Desktop.getDesktop().browse(URI.create(GoogleUserCredentialProvider.LOGIN_URL));
+                         access = JOptionPane.showInputDialog("Enter authorization code: ");
+                    }
+                    else {
+                        System.out.println("Enter authorization code: ");
+                        Scanner sc = new Scanner(System.in);
+                        access = sc.nextLine();
+                    }
                     provider.login(access);
                     try (PrintWriter p = new PrintWriter("tokens/" + Context.getUsernameHash() + ".txt")) {
                         p.println(provider.getRefreshToken());
                     }
                     return provider;
+
                 }
             } else {
                 return new PtcCredentialProvider(httpClient, Config.getUsername(), Config.getPassword());
@@ -150,15 +163,11 @@ public class Context {
 
     public PokemonGo getApi() { return api; }
 
-    public int getMinimumAPIWaitTime() { return MinimumAPIWaitTime; }
-
     public void setApi(PokemonGo api) {
         this.api = api;
     }
 
-    public PlayerProfile getProfile() {
-        return profile;
-    }
+    public PlayerProfile getProfile() {return profile; }
 
     public void setProfile(PlayerProfile profile) {
         this.profile = profile;
@@ -174,6 +183,17 @@ public class Context {
 
     public int getRoutesIndex() { return routesIndex; }
 
+    public Map getMap() {return this.pokeMap; }
+
+    public void refreshMap() { this.pokeMap = this.api.getMap(); }
+
+    public Inventories getInventories() {return this.pokeInventories; }
+
+    public void refreshInventories() throws LoginFailedException, RemoteServerException {
+        this.api.getInventories().updateInventories(true);
+        this.pokeInventories = this.api.getInventories();
+    }
+
     public void increaseRoutesIndex() { this.routesIndex++; }
 
     public void resetRoutesIndex() { this.routesIndex = 0; }
@@ -181,6 +201,7 @@ public class Context {
     public LinkedHashMap<String, String> getConsoleStrings() { return consoleStrings; }
 
     public void addTask(Task task) { executor.submit(task); }
+
     public void setConsoleString(String key, String text) { this.consoleStrings.put(key, text); }
 
     public CredentialProvider getCredentialProvider() {

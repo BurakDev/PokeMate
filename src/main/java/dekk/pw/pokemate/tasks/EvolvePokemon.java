@@ -8,21 +8,17 @@ import dekk.pw.pokemate.Config;
 import dekk.pw.pokemate.Context;
 import dekk.pw.pokemate.PokeMateUI;
 import dekk.pw.pokemate.util.StringConverter;
-import javafx.scene.image.Image;
 
 import java.io.DataInputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.HashMap;
-import java.util.ListIterator;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import static dekk.pw.pokemate.util.Time.sleep;
 
 /**
  * Created by TimD on 7/22/2016.
  */
-public class EvolvePokemon extends Task implements Runnable {
+class EvolvePokemon extends Task implements Runnable {
     private static final ConcurrentHashMap<Integer, Integer> CANDY_AMOUNTS = new ConcurrentHashMap<>();
 
     static {
@@ -47,9 +43,9 @@ public class EvolvePokemon extends Task implements Runnable {
     public void run() {
         // System.out.println("[Evolve] Activating..");
         try {
-            CopyOnWriteArrayList<Pokemon> pokeList = new CopyOnWriteArrayList<>(context.getApi().getInventories().getPokebank().getPokemons());
+            CopyOnWriteArrayList<Pokemon> pokeList = new CopyOnWriteArrayList<>(context.getInventories().getPokebank().getPokemons());
             for (Pokemon pokemon : pokeList)
-                if (!Config.isWhitelistEnabled() || Config.getWhitelistedPokemon().contains(pokemon.getPokemonId().getNumber())) {
+                if (!Config.isWhitelistEnabled() || Config.getWhitelistedPokemon().contains(pokemon.getPokemonId())) {
                     int number = pokemon.getPokemonId().getNumber();
                     if (CANDY_AMOUNTS.containsKey(number)) {
                         int required = CANDY_AMOUNTS.get(number);
