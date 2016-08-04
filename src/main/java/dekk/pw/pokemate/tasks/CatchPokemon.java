@@ -1,6 +1,7 @@
 package dekk.pw.pokemate.tasks;
 
-import POGOProtos.Inventory.Item.ItemIdOuterClass;
+import POGOProtos.Data.PokedexEntryOuterClass;
+import POGOProtos.Inventory.Item.ItemIdOuterClass.ItemId;
 import com.pokegoapi.api.inventory.Item;
 import com.pokegoapi.api.inventory.ItemBag;
 import com.pokegoapi.api.inventory.Pokeball;
@@ -9,16 +10,17 @@ import com.pokegoapi.api.map.pokemon.CatchablePokemon;
 import com.pokegoapi.api.map.pokemon.encounter.EncounterResult;
 import com.pokegoapi.api.pokemon.Pokemon;
 import com.pokegoapi.exceptions.LoginFailedException;
+import com.pokegoapi.exceptions.NoSuchItemException;
 import com.pokegoapi.exceptions.RemoteServerException;
 import dekk.pw.pokemate.Config;
 import dekk.pw.pokemate.Context;
 import dekk.pw.pokemate.PokeMateUI;
 import dekk.pw.pokemate.Walking;
 import dekk.pw.pokemate.util.StringConverter;
-import dekk.pw.pokemate.util.Time;
 
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.Date;
+import java.util.List;
 import java.util.stream.Collectors;
 
 import static POGOProtos.Networking.Responses.CatchPokemonResponseOuterClass.CatchPokemonResponse.CatchStatus.CATCH_SUCCESS;
@@ -34,47 +36,46 @@ class CatchPokemon extends Task implements Runnable {
 
     @Override
     public void run() {
-        //System.out.println("[CatchPokemon] Starting Loop");
         try {
-            Pokeball pokeball = null;
+
             List<CatchablePokemon> pokemon = context.getMap().getCatchablePokemon().stream()
-                .filter(this::shouldIgnore)
-                .collect(Collectors.toList());
+                    .filter(this::shouldIgnore)
+                    .collect(Collectors.toList());
 
             if (pokemon.size() == 0) {
-               // System.out.println("[CatchPokemon] Ending Loop - No Pokemon Found");
                 return;
             }
 
-            Item ball = itemBag().getItem(getItemForId(Config.getPreferredBall()));
-            if (ball != null && ball.getCount() > 0) {
-                pokeball = getBallForId(Config.getPreferredBall());
-            } else {
-                //find any pokeball we can.
-                for (Pokeball pb : Pokeball.values()) {
-                    ball = itemBag().getItem(pb.getBallType());
-                    if (ball != null && ball.getCount() > 0) {
-                        pokeball = pb;
-                        break;
-                    }
-                }
-            }
+            Pokeball pokeball;
+            CatchResult catchResult;
             for (CatchablePokemon target : pokemon) {
 
-                if (pokeball == null) {
-                    //System.out.println("[CatchPokemon] No Pokeballs");
-                    return;
-                }
-                Time.sleepRate();
                 Walking.setLocation(context);
                 EncounterResult encounterResult = target.encounterPokemon();
                 if (!encounterResult.wasSuccessful()) {
                     continue;
                 }
 
-                CatchResult catchResult = target.catchPokemon(pokeball);
+
+                //get pokedex entry.
+                PokedexEntryOuterClass.PokedexEntry entry = context.getApi().getInventories().getPokedex().getPokedexEntry(target.getPokemonId());
+
+                //if pokemon exist is registered in pokedex
+                if (entry != null) {
+                    //need to get pokeball for each target in case there are no balls left of the last pokeball we used.
+                    Item ball = itemBag().getItem(getItemForId(Config.getPreferredBall()));
+                    if (ball != null && ball.getCount() > 0) {
+                        pokeball = getBallForId(Config.getPreferredBall());
+                    } else {
+                        pokeball = target.getItemBall();
+                    }
+                    catchResult = target.catchPokemon(pokeball);
+                } else {
+                    catchResult = target.catchPokemonWithBestBall();
+                }
+
                 if (catchResult.getStatus() != CATCH_SUCCESS) {
-                    context.setConsoleString("CatchPokemon", "[" + new SimpleDateFormat("HH:mm:ss").format(new Date()) + "] - " + target.getPokemonId() + " fled.");
+                    context.setConsoleString("CatchPokemon", target.getPokemonId() + "ran away.");
                     continue;
                 }
 
@@ -89,16 +90,17 @@ class CatchPokemon extends Task implements Runnable {
                             String output = null;
                             try {
                                 output = String.format("Caught a %s [CP: %d] [Candy: %d]", StringConverter.titleCase(targetId), p.getCp(), p.getCandy());
+                                if (p.getCp() > Config.getMinimumCPForMessage()) {
+                                    PokeMateUI.toast(output, Config.POKE + "mon caught!", "icons/" + target.getPokemonId().getNumber() + ".png");
+                                } else {
+                                    log(output + " [IV: " + getIvRatio(p) + "%]");
+                                }
+                                context.setConsoleString("CatchPokemon", String.format("%s [IV: %d%%]", output, getIvRatio(p)));
                             } catch (LoginFailedException | RemoteServerException e) {
-                                e.printStackTrace();
+                                context.setConsoleString("CatchPokemon", "Server Error.");
                             }
 
-                            if (p.getCp() > Config.getMinimumCPForMessage()) {
-                                PokeMateUI.toast(output, Config.POKE + "mon caught!", "icons/" + target.getPokemonId().getNumber() + ".png");
-                            } else {
-                                log(output + " [IV: " + getIvRatio(p) + "%]");
-                            }
-                            context.setConsoleString("CatchPokemon", "[" + new SimpleDateFormat("HH:mm:ss").format(new Date()) + "] - " + output + " [IV: " + getIvRatio(p) + "%]");
+
                         });
                 } catch (NullPointerException ex) {
                     ex.printStackTrace();
@@ -106,9 +108,10 @@ class CatchPokemon extends Task implements Runnable {
             }
         } catch (LoginFailedException | RemoteServerException e) {
             //e.printStackTrace();
-            System.out.println("[CatchPokemon] Exceeded Rate Limit");
+            context.setConsoleString("CatchPokemon", "Server Error.");
+        } catch (NoSuchItemException e) {
+            context.setConsoleString("CatchPokemon","Out of Pokeballs.");
         } finally {
-            Time.sleepRate();
             context.addTask(new CatchPokemon(context));
         }
     }
@@ -119,11 +122,11 @@ class CatchPokemon extends Task implements Runnable {
     }
 
     private List<Pokemon> pokemons() {
-            return context.getInventories().getPokebank().getPokemons();
+        return context.getInventories().getPokebank().getPokemons();
     }
 
     private ItemBag itemBag() {
-            return context.getInventories().getItemBag();
+        return context.getInventories().getItemBag();
     }
 
     private void log(final String message) {
@@ -136,20 +139,22 @@ class CatchPokemon extends Task implements Runnable {
         return (pokemon.getIndividualAttack() + pokemon.getIndividualDefense() + pokemon.getIndividualStamina()) * 100 / 45;
     }
 
-    private ItemIdOuterClass.ItemId getItemForId(final int id) {
-        return ItemIdOuterClass.ItemId.forNumber(id);
+    private ItemId getItemForId(final int id) {
+        return ItemId.forNumber(id);
     }
 
-    private Pokeball getBallForId(int id) {
+    private Pokeball getBallForId(int id) throws NoSuchItemException {
         switch (id) {
-            case ItemIdOuterClass.ItemId.ITEM_GREAT_BALL_VALUE:
+            case ItemId.ITEM_GREAT_BALL_VALUE:
                 return Pokeball.GREATBALL;
-            case ItemIdOuterClass.ItemId.ITEM_ULTRA_BALL_VALUE:
+            case ItemId.ITEM_ULTRA_BALL_VALUE:
                 return Pokeball.ULTRABALL;
-            case ItemIdOuterClass.ItemId.ITEM_MASTER_BALL_VALUE:
+            case ItemId.ITEM_MASTER_BALL_VALUE:
                 return Pokeball.MASTERBALL;
-            default:
+            case ItemId.ITEM_POKE_BALL_VALUE:
                 return Pokeball.POKEBALL;
+            default:
+                throw new NoSuchItemException();
         }
     }
 

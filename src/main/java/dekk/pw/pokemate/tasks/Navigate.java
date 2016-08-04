@@ -11,11 +11,9 @@ import com.pokegoapi.exceptions.RemoteServerException;
 import dekk.pw.pokemate.Config;
 import dekk.pw.pokemate.Context;
 import dekk.pw.pokemate.Walking;
-import dekk.pw.pokemate.util.Time;
 
-import java.text.SimpleDateFormat;
+
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.Collectors;
@@ -70,7 +68,6 @@ public class Navigate extends Task implements Runnable {
      */
     private void populateRoute(Context context) {
         try {
-            Time.sleepRate();
             List<Pokestop> stops = context.getMap().getMapObjects().getPokestops().stream().filter(a ->
                 //only pokestops in our region
                 a.getLatitude() >= min.lat &&
@@ -125,7 +122,7 @@ public class Navigate extends Task implements Runnable {
             case POKESTOPS:
                 context.increaseRoutesIndex();
                 Walking.walk(context, route.get(context.getRoutesIndex()));
-                context.setConsoleString("Navigate", String.format("[%s] - Navigating to waypoint %d of %d", new SimpleDateFormat("HH:mm:ss").format(new Date()), context.getRoutesIndex(), route.size()));
+                context.setConsoleString("Navigate", String.format("Navigating to waypoint %d of %d", context.getRoutesIndex(), route.size()));
                 break;
             case POKEMON:
                 //TODO: walk dynamically to nearest pokemon

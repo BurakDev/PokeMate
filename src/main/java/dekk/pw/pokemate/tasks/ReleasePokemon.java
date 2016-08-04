@@ -7,11 +7,9 @@ import com.pokegoapi.exceptions.RemoteServerException;
 import dekk.pw.pokemate.Config;
 import dekk.pw.pokemate.Context;
 import dekk.pw.pokemate.PokeMateUI;
-import dekk.pw.pokemate.util.Time;
 
-import java.text.SimpleDateFormat;
+
 import java.util.Collections;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -44,9 +42,8 @@ class ReleasePokemon extends Task implements Runnable {
                     //Passing this filter means they are not a 'perfect pokemon'
                     try {
                         p.transferPokemon();
-                        Time.sleepRate();
                         PokeMateUI.addMessageToLog("Transferring " + (list.indexOf(p) + 1) + "/" + list.size() + " " + p.getPokemonId() + " CP " + p.getCp() + " [" + p.getIndividualAttack() + "/" + p.getIndividualDefense() + "/" + p.getIndividualStamina() + "]");
-                        context.setConsoleString("ReleasePokemon", "[" + new SimpleDateFormat("HH:mm:ss").format(new Date()) + "] - " + ("Transferred " + (list.indexOf(p) + 1) + "/" + list.size() + " " + p.getPokemonId() + " CP " + p.getCp() + " [" + p.getIndividualAttack() + "/" + p.getIndividualDefense() + "/" + p.getIndividualStamina() + "]"));
+                        context.setConsoleString("ReleasePokemon", "Transferred " + (list.indexOf(p) + 1) + "/" + list.size() + " " + p.getPokemonId() + " CP " + p.getCp() + " [" + p.getIndividualAttack() + "/" + p.getIndividualDefense() + "/" + p.getIndividualStamina() + "]");
                     } catch (LoginFailedException | RemoteServerException e) {
                         e.printStackTrace();
                     }
@@ -54,7 +51,6 @@ class ReleasePokemon extends Task implements Runnable {
                 });
             }
         } finally {
-            Time.sleepRate();
             context.addTask(new ReleasePokemon(context));
         }
     }

@@ -5,10 +5,8 @@ import com.pokegoapi.api.inventory.EggIncubator;
 import com.pokegoapi.api.pokemon.EggPokemon;
 import dekk.pw.pokemate.Context;
 import dekk.pw.pokemate.PokeMateUI;
-import dekk.pw.pokemate.util.Time;
 
-import java.text.SimpleDateFormat;
-import java.util.Date;
+
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -36,18 +34,16 @@ class IncubateEgg extends Task implements Runnable{
             List<EggPokemon> eggs = context.getInventories().getHatchery().getEggs().stream().filter(egg ->
                 egg.getEggIncubatorId() == null || egg.getEggIncubatorId().isEmpty()).collect(Collectors.toList());
             if (incubators.size() > 0 && eggs.size() > 0) {
-                Time.sleepRate();
                 UseItemEggIncubatorResponseOuterClass.UseItemEggIncubatorResponse.Result result = incubators.get(0).hatchEgg(eggs.get(0));
                 if (result.equals(UseItemEggIncubatorResponseOuterClass.UseItemEggIncubatorResponse.Result.SUCCESS)) {
                     String eggresult = "Now incubating egg ( " + eggs.get(0).getEggKmWalkedTarget() + "km)";
                     PokeMateUI.toast(eggresult, "Egg Incubated!", "icons/items/egg.png");
-                    context.setConsoleString("IncubateEgg", "[" + new SimpleDateFormat("HH:mm:ss").format(new Date()) + "] - " + eggresult);
+                    context.setConsoleString("IncubateEgg", eggresult);
                 }
             }
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
-            Time.sleepRate();
             context.addTask(new IncubateEgg(context));
         }
     }

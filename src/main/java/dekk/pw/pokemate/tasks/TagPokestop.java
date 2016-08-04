@@ -9,11 +9,9 @@ import dekk.pw.pokemate.Config;
 import dekk.pw.pokemate.Context;
 import dekk.pw.pokemate.PokeMateUI;
 import dekk.pw.pokemate.Walking;
-import dekk.pw.pokemate.util.Time;
 
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
+
 
 import static dekk.pw.pokemate.tasks.Navigate.navigationType;
 import static dekk.pw.pokemate.util.StringConverter.convertItemAwards;
@@ -32,18 +30,7 @@ public class TagPokestop extends Task implements Runnable {
     @Override
     public void run() {
         try {
-            try {
-                Time.sleepRate();
-                map = context.getMap().getMapObjects();
-
-            } catch (RemoteServerException e) {
-                System.out.println("[Tag PokeStop] Ending Loop - Exceeded Rate Limit Finding PokeStops ");
-                e.printStackTrace();
-                return;
-            } catch (LoginFailedException e) {
-                e.printStackTrace();
-                System.out.println("[Tag PokeStop] Ending Loop - Login Failed");
-            }
+            map = context.getMap().getMapObjects();
             ArrayList<Pokestop> pokestops = new ArrayList<>(map.getPokestops());
             if (pokestops.size() == 0) {
                 return;
@@ -54,20 +41,17 @@ public class TagPokestop extends Task implements Runnable {
                     Walking.setLocation(context);
                     String result = null;
                     try {
-                        Time.sleepRate();
                         result = resultMessage(near.loot());
                         PokeMateUI.toast(result, Config.POKE + "Stop interaction!", "icons/pokestop.png");
-                        context.setConsoleString("TagPokestop", "[" + new SimpleDateFormat("HH:mm:ss").format(new Date()) + "] - " + result);
-                    } catch (LoginFailedException e) {
-                        //System.out.println("[Tag PokeStop] Ending Loop - Login Failed");
-                        e.printStackTrace();
-                    } catch (RemoteServerException e) {
-                        //System.out.println("[Tag PokeStop] Exceeded Rate Limit While looting");
-                        context.setConsoleString("TagPokestop", "[" + new SimpleDateFormat("HH:mm:ss").format(new Date()) + "] - " + "Exceeded Rate Limit While looting");
+                        context.setConsoleString("TagPokestop", result);
+                    } catch (LoginFailedException | RemoteServerException e) {
+                        context.setConsoleString("TagPokestop", "Server Error");
                         e.printStackTrace();
                     }
                 });
             //System.out.println("[Tag PokeStop] Ending Loop");
+        } catch (LoginFailedException | RemoteServerException e) {
+            context.setConsoleString("TagPokestop", "Server Error");
         } finally {
             switch (navigationType) {
                 case POKESTOPS:
@@ -76,7 +60,6 @@ public class TagPokestop extends Task implements Runnable {
                     //TODO: walk dynamically to nearest pokemon
                     break;
                 default:
-                    Time.sleepRate();
                     context.addTask(new TagPokestop(context));
             }
         }
